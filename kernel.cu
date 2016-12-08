@@ -48,7 +48,6 @@ __global__ void adjust_hue_hwc(const int height, const int width,
 
 	v = M;
 
-	// hue adjust logic goes here - just shift the h value by some float factor, fmod 1.
 
 	// hsv2rgb
 	const float new_chroma = v * s;
@@ -89,7 +88,7 @@ __global__ void adjust_hue_hwc(const int height, const int width,
 
 int main(void) {
 
-	srand((unsigned) time(0));
+	srand(1);
 
 	const int h = 1300;
 	const int w = 1300;
@@ -124,16 +123,20 @@ int main(void) {
 	using std::cout;
 	const char * lookup[3] { "red", "green", "blue" };
 
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < total; i++) {
 		channel_ctr = (channel_ctr + 1) % 3;
 		if (abs(mat_h[i] - mat_h2[i]) > 1) {
-			std::cout << "BAD PIXEL: channel = " << lookup[channel_ctr]
-					<< ", original = " << (int) mat_h[i]
-					<< ", after GPU RGB->HSV->RGB = " << (int) mat_h2[i]
-					<< "\n";
+//			std::cout << "BAD PIXEL: index " << i << "\n";
+//			std::cout << "channel = " << lookup[channel_ctr]
+//					<< ", original = " << (int) mat_h[i]
+//					<< ", after GPU RGB->HSV->RGB = " << (int) mat_h2[i]
+//					<< "\n";
+//			std::cout<< "h pixels before it: [" << (int) mat_h[i - 2] << ", " << (int) mat_h[i - 1] << "]\n";
+//			std::cout<< "h pixels after it: [" << (int)  mat_h[i + 1] << ", " << (int)  mat_h[i + 2] << "]\n\n";
 			error_ctr++;
 		}
 	}
+
 
 	cout << "\nThere were " << error_ctr << " bad pixels out of " << total << "\n";
 	cout << "This represents " << (100.0 * error_ctr / total) << "%\n\n";
