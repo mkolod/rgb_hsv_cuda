@@ -1,155 +1,177 @@
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
+#include <cstdlib>
+#include <cmath>
 #include <iostream>
 
-using namespace cv;
 using namespace std;
 
 #define int8 unsigned char
 
 float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
 
-    float *hsv = (float *) calloc(rows * cols * 3, sizeof(float));
-    for (int row = 0; row < rows; row++) {
-        for (int col = 0; col < cols; col++) {
+    const int total = rows * cols * 3;
+    float * hsv = (float *) calloc(total, sizeof(float));
 
-            int index = ((row * cols) + col) * 3;
+    for (int idx = 0; idx < total; idx += 3) {
 
-            float r = rgb[index];
-            float g = rgb[index + 1];
-            float b = rgb[index + 2];
+        float r = rgb[idx];
+        float g = rgb[idx + 1];
+        float b = rgb[idx + 2];
 
-            float M = max(r, max(g, b));
-            float m = min(r, min(g, b));
-            float chroma = M - m;
+        float M = max(r, max(g, b));
+        float m = min(r, min(g, b));
+        float c = M - m;
 
-            // hue
-            if (chroma > 0) {
-                if (M == r) {
-                    hsv[index] = fmod((g - b) / chroma, 6.0f);
-                } else if (M == g) {
-                    hsv[index] = (b - r) / chroma + 2.0;
-                } else {
-                    hsv[index] = (r - g) / chroma + 4.0;
-                }
+        // hue
+        if (c > 0.0) {
+            if (M == r) {
+                hsv[idx] = fmod((g - b) / c, 6.0f);
+            } else if (M == g) {
+                hsv[idx] = (b - r) / c + 2.0;
+            } else {
+                hsv[idx] = (r - g) / c + 4.0;
             }
-
-            // saturation
-            if (M > 0) {
-                hsv[index + 1] = chroma / M;
-            }
-
-            // value
-            hsv[index + 2] = M;
         }
+
+        hsv[idx] /= 6.0;
+
+        // saturation
+        if (M > 0) {
+            hsv[idx + 1] = c / M;
+        }
+
+        // value
+        hsv[idx + 2] = M;
     }
 
     return hsv;
 }
 
-
 int8 * hsv_to_rgb(const int rows, const int cols, const float * hsv) {
 
-    int8 *rgb = (int8 *) calloc(rows * cols * 3, sizeof(int8));
-    for (int row = 0; row < rows; row++) {
-        for (int col = 0; col < cols; col++) {
+    const int total = rows * cols * 3;
 
-            const int index = ((row * cols) + col) * 3;
-            float h = hsv[index];
-            float s = hsv[index + 1];
-            float v = hsv[index + 2];
+    int8 * rgb = (int8 *) calloc(total, sizeof(int8));
 
-            float chroma = v * s;
-            float x = chroma * (1.0 - fabs(fmod(h, 2.0f) - 1.0f));
-            float m = v - chroma;
+    for (int idx = 0; idx < total; idx += 3) {
 
+        const float h = hsv[idx];
+        const float s = hsv[idx + 1];
+        const float v = hsv[idx + 2];
 
-            rgb[index] = chroma * (
-            		(h >= 0 && h < 1) || (h >= 5 && h < 6)
-            		) + x * (
-            				(h >= 1 && h < 2) || (h >= 4 && h < 5)
-            				) + m;
+        const int i = h * 6.0;
+        const float f = (h * 6.0) - i;
+        const float p = v * (1.0 - s);
+        const float q = v * (1.0 - s * f);
+        const float t = v * (1.0 - s * (1.0 - f));
 
-            rgb[index + 1] = chroma * (
-            		(h >= 1 && h < 3)
-            		) + x * (
-            				(h >= 0 && h < 1) || (h >= 3 && h < 4)
-            				) + m;
+        float r = 0;
+        float g = 0;
+        float b = 0;
 
-            rgb[index + 2] = chroma * (
-            		(h >= 3 && h < 5)
-            		) + x * (
-            				(h >= 2 && h < 3) || (h >= 5 && h < 6)
-            				) + m;
+        if (i % 6 == 0) {
+
+            r = v;
+            g = t;
+            b = p;
+
+        } else if (i == 1) {
+
+            r = q;
+            g = v;
+            b = p;
+
+        } else if (i == 2) {
+
+            r = p;
+            g = v;
+            b = t;
+
+        } else if (i == 3) {
+
+            r = p;
+            g = q;
+            b = v;
+
+        } else if (i == 4) {
+
+            r = t;
+            g = p;
+            b = v;
+
+        } else if (i == 5) {
+
+            r = v;
+            g = p;
+            b = q;
+
+        } else if (s == 0) {
+
+            r = v;
+            g = v;
+            b = v;
+
         }
+
+        rgb[idx] = round(r);
+        rgb[idx + 1] = round(g);
+        rgb[idx + 2] = round(b);
     }
 
     return rgb;
 }
 
-int main( int argc, char** argv )
-{
-    string path = "spiral.jpg";
+int main(int argc, char **argv) {
 
-    Mat img;
-    img = imread(path, CV_LOAD_IMAGE_COLOR);
+    const int rows = 1300;
+    const int cols = 1300;
+    const int channels = 3;
+    const int total = rows * cols * channels;
 
-    int rows = img.rows;
-    int cols = img.cols;
-    int channels = img.channels();
-    int total = rows * cols * channels;
+    int8 * rgb = (int8 *) malloc(total * sizeof(int8));
 
-    Mat img2(Size(rows, cols), CV_8UC3);
+    srand(0);
 
-    cvtColor(img, img2, CV_BGR2RGB);
-
-    cout << "rows = " << rows << ", cols = " << cols << ", channels = " << channels << "\n";
-
-    unsigned char *rgb = img2.data;
-
-    float *hsv = rgb_to_hsv(rows, cols, rgb);
-    int8 *rgb2 = hsv_to_rgb(rows, cols, hsv);
-
-    int counter = 0;
-    int ctr2 = 0;
-    int maxerr = 1;
-
-    const char * lookup[3] { "red", "green", "blue" };
-    int channel_ctr = 0;
     for (int i = 0; i < total; i++) {
-    	channel_ctr = (channel_ctr + 1) % 3;
-    	if (rgb[i] == rgb2[i]) {
-    	} else {
-    		int diff = abs(rgb[i] - rgb2[i]);
-    		if (diff > maxerr) {
-    			maxerr = diff;
-    		}
-    		counter++;
-    		if (diff > 1) {
-    			std::cout << "BAD PIXEL: index " << i << "\n";
-    			std::cout << "channel = " << lookup[channel_ctr]
-    					<< ", original = " << (int) rgb[i]
-    					<< ", after GPU RGB->HSV->RGB = " << (int) rgb2[i]
-    					<< "\n";
-    			std::cout<< "h pixels before it: [" << (int) rgb[i - 2] << ", " << (int) rgb[i - 1] << "]\n";
-    			std::cout<< "h pixels after it: [" << (int)  rgb[i + 1] << ", " << (int)  rgb[i + 2] << "]\n\n";
-  			ctr2++;
-    		}
-    	}
+
+        rgb[i] = abs(rand() % 255);
     }
 
-    cout << "\n Number of inequalities: " << counter << "\n";
-    cout << "\n Number of inequalities > 1: " << ctr2 << "\n";
-    cout << "Percentage of total (> 1): " << (ctr2 * 1.0 / total * 100) << "\n";
-    cout << "Max inequality: " << maxerr << "\n";
+    float * hsv = rgb_to_hsv(rows, cols, rgb);
+    int8 * rgb2 = hsv_to_rgb(rows, cols, hsv);
 
-    Mat transformed(rows, cols, CV_8UC3, rgb2);
+    const char * lookup[3]{"red", "green", "blue"};
+    int channel_ctr = 0;
+    int ctr = 0;
 
+    for (int i = 0; i < total; i++) {
+        channel_ctr = (channel_ctr + 1) % 3;
+        if (rgb[i] != rgb2[i]) {
+           const int diff = abs(rgb[2] - rgb2[i]);
+            // diff of 1 can be due to float operations
+            if (diff > 1) {
+//                std::cout << "BAD PIXEL: index " << i << "\n";
+//                std::cout << "channel = " << lookup[channel_ctr]
+//                          << ", original = " << (int) rgb[i]
+//                          << ", after GPU RGB->HSV->RGB = " << (int) rgb2[i]
+//                          << "\n";
+//                std::cout << "h pixels before it: [" << (int) rgb[i - 2] << ", " << (int) rgb[i - 1] << "]\n";
+//                std::cout << "h pixels after it: [" << (int) rgb[i + 1] << ", " << (int) rgb[i + 2] << "]\n\n";
+                ctr++;
+            }
+        }
+    }
 
-    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
-    imshow( "Display window", transformed );                   // Show our image inside it.
+    cout.precision(4);
+    cout << "\nPercent bad pixels: " << (1.0 * ctr / total * 100) << "\n";
 
-    waitKey(0);                                          // Wait for a keystroke in the window
+//    cout << "\n Number of inequalities: " << counter << "\n";
+//    cout << "\n Number of inequalities > 1: " << ctr2 << "\n";
+//    cout << "Percentage of total (> 1): " << (ctr2 * 1.0 / total * 100) << "\n";
+//    cout << "Max inequality: " << maxerr << "\n";
+
+//    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
+//    imshow( "Display window", img );                   // Show our image inside it.
+//
+//    waitKey(0);                                          // Wait for a keystroke in the window
     return 0;
 }
