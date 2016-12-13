@@ -173,18 +173,6 @@ int main(int argc, char **argv) {
     int channel_ctr = 0;
     int ctr = 0;
 
-    cout << "\n";
-    for (int i = 0; i < 10; i++) {
-        cout << (int) rgb[i] << " ";
-    }
-    cout << "\n\n";
-
-    cout << "\n";
-    for (int i = 0; i < 10; i++) {
-        cout << hsv[i] << " ";
-    }
-    cout << "\n\n";
-
     for (int i = 0; i < total; i++) {
 
         if (rgb[i] != rgb2[i]) {
