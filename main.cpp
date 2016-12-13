@@ -1,3 +1,4 @@
+#include <iostream>
 #include <cstdlib>
 #include <cmath>
 #include <iostream>
@@ -5,6 +6,32 @@
 using namespace std;
 
 #define int8 unsigned char
+
+class RNG {
+public:
+
+    RNG(const uint64_t seed) : seed(seed) {}
+
+    uint32_t next_int(const uint32_t max) {
+        uint64_t next = (1664525 * seed + 1013904223) % (2L << 32);
+        seed = next;
+        if (next > max) {
+            next %= max;
+        }
+        return next;
+    }
+
+private:
+    int64_t seed = 0;
+};
+
+inline float special_fmod(float num, float modulus) {
+    if (num > 0) {
+        return fmod(num, modulus);
+    } else {
+        return modulus - fmod(abs(num), modulus);
+    }
+}
 
 float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
 
@@ -24,7 +51,10 @@ float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
         // hue
         if (c > 0.0) {
             if (M == r) {
-                hsv[idx] = fmod((g - b) / c, 6.0f);
+                hsv[idx] = special_fmod((g - b) / c, 6.0f);
+//                        abs(
+//                        fmod((g - b) / c, 6.0f);
+//                );
             } else if (M == g) {
                 hsv[idx] = (b - r) / c + 2.0;
             } else {
@@ -60,13 +90,13 @@ int8 * hsv_to_rgb(const int rows, const int cols, const float * hsv) {
 
         const int i = h * 6.0;
         const float f = (h * 6.0) - i;
-        const float p = v * (1.0 - s);
-        const float q = v * (1.0 - s * f);
-        const float t = v * (1.0 - s * (1.0 - f));
+        const int p = round(v * (1.0 - s));
+        const int q = round(v * (1.0 - s * f));
+        const int t = round(v * (1.0 - s * (1.0 - f)));
 
-        float r = 0;
-        float g = 0;
-        float b = 0;
+        int r = 0;
+        int g = 0;
+        int b = 0;
 
         if (i % 6 == 0) {
 
@@ -112,9 +142,9 @@ int8 * hsv_to_rgb(const int rows, const int cols, const float * hsv) {
 
         }
 
-        rgb[idx] = round(r);
-        rgb[idx + 1] = round(g);
-        rgb[idx + 2] = round(b);
+        rgb[idx] = r;
+        rgb[idx + 1] = g;
+        rgb[idx + 2] = b;
     }
 
     return rgb;
@@ -127,38 +157,53 @@ int main(int argc, char **argv) {
     const int channels = 3;
     const int total = rows * cols * channels;
 
-    int8 * rgb = (int8 *) malloc(total * sizeof(int8));
+    int8 * const rgb = (int8 *) calloc(total, sizeof(int8));
 
-    srand(0);
+    RNG rng(42);
 
     for (int i = 0; i < total; i++) {
 
-        rgb[i] = abs(rand() % 255);
+        rgb[i] = (int8) rng.next_int(255);// (int8) abs(rand() % 255);
     }
 
-    float * hsv = rgb_to_hsv(rows, cols, rgb);
-    int8 * rgb2 = hsv_to_rgb(rows, cols, hsv);
+    const float * const hsv = rgb_to_hsv(rows, cols, rgb);
+    const int8 * const rgb2 = hsv_to_rgb(rows, cols, hsv);
 
-    const char * lookup[3]{"red", "green", "blue"};
+    const char * const lookup[3]{"red", "green", "blue"};
     int channel_ctr = 0;
     int ctr = 0;
 
+    cout << "\n";
+    for (int i = 0; i < 10; i++) {
+        cout << (int) rgb[i] << " ";
+    }
+    cout << "\n\n";
+
+    cout << "\n";
+    for (int i = 0; i < 10; i++) {
+        cout << hsv[i] << " ";
+    }
+    cout << "\n\n";
+
     for (int i = 0; i < total; i++) {
-        channel_ctr = (channel_ctr + 1) % 3;
+
         if (rgb[i] != rgb2[i]) {
            const int diff = abs(rgb[2] - rgb2[i]);
+
             // diff of 1 can be due to float operations
             if (diff > 1) {
-//                std::cout << "BAD PIXEL: index " << i << "\n";
-//                std::cout << "channel = " << lookup[channel_ctr]
-//                          << ", original = " << (int) rgb[i]
-//                          << ", after GPU RGB->HSV->RGB = " << (int) rgb2[i]
-//                          << "\n";
-//                std::cout << "h pixels before it: [" << (int) rgb[i - 2] << ", " << (int) rgb[i - 1] << "]\n";
-//                std::cout << "h pixels after it: [" << (int) rgb[i + 1] << ", " << (int) rgb[i + 2] << "]\n\n";
+                std::cout << "BAD PIXEL: index " << i << "\n";
+                std::cout << "channel = " << lookup[channel_ctr]
+                          << ", original = " << (int) rgb[i]
+                          << ", after RGB->HSV->RGB = " << (int) rgb2[i]
+                          << "\n";
+                std::cout << "h pixels before it: [" << (int) rgb[i - 2] << ", " << (int) rgb[i - 1] << "]\n";
+                std::cout << "h pixels after it: [" << (int) rgb[i + 1] << ", " << (int) rgb[i + 2] << "]\n\n";
                 ctr++;
             }
         }
+
+        channel_ctr = (channel_ctr + 1) % 3;
     }
 
     cout.precision(4);
