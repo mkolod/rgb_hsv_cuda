@@ -25,13 +25,11 @@ private:
     int64_t seed = 0;
 };
 
-inline float special_fmod(float num, float modulus) {
-    if (num > 0) {
-        return fmod(num, modulus);
-    } else {
-        return modulus - fmod(abs(num), modulus);
-    }
-}
+//inline float special_fmod(float num, float modulus) {
+//    const unsigned char sgn = num < 0.0f;
+//    const char sign = pow(-1, sgn);
+//    return sgn * modulus + sign * fmod(sign * num, modulus);
+//}
 
 float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
 
@@ -51,10 +49,12 @@ float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
         // hue
         if (c > 0.0) {
             if (M == r) {
-                hsv[idx] = special_fmod((g - b) / c, 6.0f);
-//                        abs(
-//                        fmod((g - b) / c, 6.0f);
-//                );
+
+                const float num = (g - b) / c;
+                const unsigned char sgn = num < 0.0f;
+                const float sign = pow(-1, sgn);
+                hsv[idx] = sgn * 6.0f + sign * fmod(sign * num, 6.0f);  // special_fmod((g - b) / c, 6.0f);
+
             } else if (M == g) {
                 hsv[idx] = (b - r) / c + 2.0;
             } else {
