@@ -1,14 +1,24 @@
 #define int8 unsigned char
 
-#include <cstdlib>
+// #include <cuda.h>
+// #include <math_functions.hpp>
+// #include <cuda_runtime.h>
+// #include <cstdlib>
 #include <iostream>
+
+// #define __CUDA_INTERNAL_COMPILATION__
+// #include <math_functions.h>
+// #undef __CUDA_INTERNAL_COMPILATION__
 
 using std::cout;
 
-inline void gpuAssert(cudaError_t code) {
+inline bool gpuAssert(cudaError_t code) {
 	if (code != cudaSuccess) {
-		std::cout << cudaGetErrorString(code) << "\n";
+		cout << cudaGetErrorString(code) << "\n";
+		return false;
 	}
+
+	return true;
 }
 
 __global__ void adjust_hue_hwc(const int height, const int width,
@@ -30,68 +40,70 @@ __global__ void adjust_hue_hwc(const int height, const int width,
 	const float m = min(r, min(g, b));
 	const float chroma = M - m;
 
-	float h = 0.0, s = 0.0, v = 0.0;
+    // not allocating space for v because v = M by definition
+	float h = 0.0, s = 0.0;
 
-	if (chroma > 0) {
+	if (chroma > 0.0f) {
 		if (M == r) {
-			h = fmod((g - b) / chroma, 6.0f);
+
+            const float num = (g - b) / chroma;
+            const float sgn = num < 0.0f;
+            const float sign = pow(-1.0f, sgn);
+            h = (sgn * 6.0f + sign * fmod(sign * num, 6.0f)) / 6.0f;
+			
 		} else if (M == g) {
-			h = (b - r) / chroma + 2.0;
+
+			h = ((b - r) / chroma + 2.0) / 6.0f;
+
 		} else {
-			h = (r - g) / chroma + 4.0;
+
+			h = ((r - g) / chroma + 4.0) / 6.0f;
 		}
+
+	} else {
+
+		h = 0.0f;
 	}
 
 	if (M > 0.0) {
+
 		s = chroma / M;
+
+	} else {
+
+		s = 0.0f;
 	}
 
-	v = M;
+    // we need multiplication, then truncation
+    const int i = h * 6.0;
+    const float f = (h * 6.0) - i;
+    const int p = round(M * (1.0 - s));
+    const int q = round(M * (1.0 - s * f));
+    const int t = round(M * (1.0 - s * (1.0 - f)));
 
+    output[idx] =
+            M * (i % 6 == 0 || i == 5 || s == 0) +
+            q * (i == 1) +
+            p * (i == 2 || i == 3) +
+            t * (i == 4);
 
-	// hsv2rgb
-	const float new_chroma = v * s;
-	const float x = chroma * (1.0 - fabs(fmod(h, 2.0f) - 1.0f));
-	const float new_m = v - chroma;
+    output[idx + 1] = t * (i % 6 == 0) +
+        M * (i == 1 || i == 2 || s == 0 && (i % 6 != 0)) +
+        q * (i == 3) +
+        p * (i == 4 || i == 5);
 
-	const int between_0_and_1 = h >= 0.0 && h < 1;
-	const int between_1_and_2 = h >= 1.0 && h < 2;
-	const int between_2_and_3 = h >= 2 && h < 3;
-	const int between_3_and_4 = h >= 3 && h < 4;
-	const int between_4_and_5 = h >= 4 && h < 5;
-	const int between_5_and_6 = h >= 5 && h < 6;
-
-	// red channel
-	const int red_chroma_mask = between_0_and_1 || between_5_and_6;
-	const int red_x_mask = between_1_and_2 || between_4_and_5;
-
-	const int8 new_r = new_chroma * red_chroma_mask + x * red_x_mask + new_m;
-
-	// green channel
-	const int green_chroma_mask = between_1_and_2 || between_2_and_3;
-	const int green_x_mask = between_0_and_1 || between_3_and_4;
-
-	const int8 new_g = new_chroma * green_chroma_mask + x * green_x_mask
-			+ new_m;
-
-	// blue channel
-	const int blue_chroma_mask = between_3_and_4 || between_4_and_5;
-	const int blue_x_mask = between_2_and_3 || between_5_and_6;
-
-	const int8 new_b = new_chroma * blue_chroma_mask + x * blue_x_mask + new_m;
-
-	output[idx] = new_r;
-	output[idx + 1] = new_g;
-	output[idx + 2] = new_b;
-
+    output[idx + 2] = p * (i % 6 == 0 || i == 1) +
+        t * (i == 2) +
+        M * (i == 3 || i == 4 || s == 0 && (i % 6 != 0)) +
+        q * (i == 5);
 }
 
 int main(void) {
 
 	srand(1);
 
-	const int h = 1300;
-	const int w = 1300;
+	const int h = 352; //1300;
+	const int w = 352; //1300;
 	const int total = h * w * 3;
 
 	const int size_bytes = h * w * 3 * sizeof(int8);
@@ -105,7 +117,8 @@ int main(void) {
 	gpuAssert(cudaMalloc(&mat_d2, size_bytes));
 
 	for (int i = 0; i < total; i++) {
-		mat_h[i] = abs(rand() % 256);
+		const int num = rand() % 256;
+		mat_h[i] = num > 0.0f ? num : -num;
 	}
 
 	gpuAssert(cudaMemcpy(mat_d, mat_h, size_bytes, cudaMemcpyHostToDevice));
@@ -113,7 +126,9 @@ int main(void) {
 	const int threads_per_block = 1024;
 	const int blocks = (h * w + (threads_per_block - 1)) / threads_per_block;
 
-	adjust_hue_hwc<<<blocks, threads_per_block>>>(h, w, mat_d, mat_d2);
+    for (int i = 0; i < 100; i++) {
+    	adjust_hue_hwc<<<blocks, threads_per_block>>>(h, w, mat_d, mat_d2);
+    }
 
 	gpuAssert(cudaMemcpy(mat_h2, mat_d2, size_bytes, cudaMemcpyDeviceToHost));
 
@@ -121,11 +136,11 @@ int main(void) {
 	int channel_ctr = 0;
 
 	using std::cout;
-	const char * lookup[3] { "red", "green", "blue" };
+	// const char * lookup[3] { "red", "green", "blue" };
 
 	for (int i = 0; i < total; i++) {
 		channel_ctr = (channel_ctr + 1) % 3;
-		if (abs(mat_h[i] - mat_h2[i]) > 1) {
+		if (abs(mat_h[i] - mat_h2[i]) > 0) {
 //			std::cout << "BAD PIXEL: index " << i << "\n";
 //			std::cout << "channel = " << lookup[channel_ctr]
 //					<< ", original = " << (int) mat_h[i]
