@@ -38,13 +38,13 @@ float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
 
     for (int idx = 0; idx < total; idx += 3) {
 
-        float r = rgb[idx];
-        float g = rgb[idx + 1];
-        float b = rgb[idx + 2];
+        const float r = rgb[idx];
+        const float g = rgb[idx + 1];
+        const float b = rgb[idx + 2];
 
-        float M = max(r, max(g, b));
-        float m = min(r, min(g, b));
-        float c = M - m;
+        const float M = max(r, max(g, b));
+        const float m = min(r, min(g, b));
+        const float c = M - m;
 
         // hue
         if (c > 0.0) {
@@ -53,20 +53,70 @@ float * rgb_to_hsv(const int rows, const int cols, const int8 * rgb) {
                 const float num = (g - b) / c;
                 const unsigned char sgn = num < 0.0f;
                 const float sign = pow(-1, sgn);
-                hsv[idx] = sgn * 6.0f + sign * fmod(sign * num, 6.0f);  // special_fmod((g - b) / c, 6.0f);
+                hsv[idx] = (sgn * 6.0f + sign * fmod(sign * num, 6.0f)) / 6.0f;  // special_fmod((g - b) / c, 6.0f);
 
             } else if (M == g) {
-                hsv[idx] = (b - r) / c + 2.0;
+                hsv[idx] = ((b - r) / c + 2.0) / 6.0f;
             } else {
-                hsv[idx] = (r - g) / c + 4.0;
+                hsv[idx] = ((r - g) / c + 4.0) / 6.0f;
             }
         }
-
-        hsv[idx] /= 6.0;
 
         // saturation
         if (M > 0) {
             hsv[idx + 1] = c / M;
+        }
+
+        // value
+        hsv[idx + 2] = M;
+    }
+
+    return hsv;
+}
+
+float * rgb_to_hsv2(const int rows, const int cols, const int8 * rgb) {
+
+    const int total = rows * cols * 3;
+    float * const hsv = (float *) calloc(total, sizeof(float));
+
+    const float div6 = 1.0f / 6.0f;
+
+    for (int idx = 0; idx < total; idx += 3) {
+
+        const float r = rgb[idx];
+        const float g = rgb[idx + 1];
+        const float b = rgb[idx + 2];
+
+        const float M = max(r, max(g, b));
+        const float m = min(r, min(g, b));
+        const float c = M - m;
+
+        if (c > 0.0f) {
+
+            const float divc = 1.0f / c;
+
+            const float rnum = (g - b) * divc;
+            const unsigned char sgn = rnum < 0.0f;
+            const float sign = pow(-1, sgn);
+
+            const unsigned char mr = M == r;
+            const unsigned char mg = M == g;
+            const unsigned char mb = M == b;
+
+
+            // hue
+            hsv[idx] =
+                    ((sgn * 6.0f + sign * fmod(sign * rnum, 6.0f)) * div6) * mr +
+                     (((b - r) * divc + 2.0) * div6) * (mg && !mr) +
+                     (((r - g) * divc + 4.0) * div6) * (mb && !mr && !mg);
+
+        }
+
+        if (M > 0.0f) {
+
+            // saturation
+            hsv[idx + 1] = (c / M) * (M > 0.0f);
+
         }
 
         // value
@@ -98,49 +148,66 @@ int8 * hsv_to_rgb(const int rows, const int cols, const float * hsv) {
         int g = 0;
         int b = 0;
 
-        if (i % 6 == 0) {
+        r =
+                v * (i % 6 == 0 || i == 5 || s == 0) +
+                q * (i == 1) +
+                p * (i == 2 || i == 3) +
+                t * (i == 4);
 
-            r = v;
-            g = t;
-            b = p;
+        g = t * (i % 6 == 0) +
+            v * (i == 1 || i == 2 || s == 0 && (i % 6 != 0)) +
+            q * (i == 3) +
+            p * (i == 4 || i == 5);
 
-        } else if (i == 1) {
+        b = p * (i % 6 == 0 || i == 1) +
+            t * (i == 2) +
+            v * (i == 3 || i == 4 || s == 0 && (i % 6 != 0)) +
+            q * (i == 5);
 
-            r = q;
-            g = v;
-            b = p;
 
-        } else if (i == 2) {
-
-            r = p;
-            g = v;
-            b = t;
-
-        } else if (i == 3) {
-
-            r = p;
-            g = q;
-            b = v;
-
-        } else if (i == 4) {
-
-            r = t;
-            g = p;
-            b = v;
-
-        } else if (i == 5) {
-
-            r = v;
-            g = p;
-            b = q;
-
-        } else if (s == 0) {
-
-            r = v;
-            g = v;
-            b = v;
-
-        }
+//        if (i % 6 == 0) {
+//
+//            r = v;
+//            g = t;
+//            b = p;
+//
+//        } else if (i == 1) {
+//
+//            r = q;
+//            g = v;
+//            b = p;
+//
+//        } else if (i == 2) {
+//
+//            r = p;
+//            g = v;
+//            b = t;
+//
+//        } else if (i == 3) {
+//
+//            r = p;
+//            g = q;
+//            b = v;
+//
+//        } else if (i == 4) {
+//
+//            r = t;
+//            g = p;
+//            b = v;
+//
+//        } else if (i == 5) {
+//
+//            r = v;
+//            g = p;
+//            b = q;
+//
+//        } else if (s == 0) {
+//
+//            r = v;
+//            g = v;
+//            b = v;
+//
+//        }
 
         rgb[idx] = r;
         rgb[idx + 1] = g;
@@ -166,7 +233,7 @@ int main(int argc, char **argv) {
         rgb[i] = (int8) rng.next_int(255);// (int8) abs(rand() % 255);
     }
 
-    const float * const hsv = rgb_to_hsv(rows, cols, rgb);
+    const float * const hsv = rgb_to_hsv2(rows, cols, rgb);
     const int8 * const rgb2 = hsv_to_rgb(rows, cols, hsv);
 
     const char * const lookup[3]{"red", "green", "blue"};
