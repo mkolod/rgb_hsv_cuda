@@ -89,7 +89,7 @@ float * rgb_to_hsv2(const int rows, const int cols, const int8 * rgb) {
 
         const float M = max(r, max(g, b));
         const float m = min(r, min(g, b));
-        const float c = M - m;
+        float c = M - m;
 
         if (c > 0.0f) {
 
@@ -103,20 +103,25 @@ float * rgb_to_hsv2(const int rows, const int cols, const int8 * rgb) {
             const unsigned char mg = M == g;
             const unsigned char mb = M == b;
 
-
             // hue
             hsv[idx] =
                     ((sgn * 6.0f + sign * fmod(sign * rnum, 6.0f)) * div6) * mr +
                      (((b - r) * divc + 2.0) * div6) * (mg && !mr) +
                      (((r - g) * divc + 4.0) * div6) * (mb && !mr && !mg);
 
+        } else {
+
+            hsv[idx] = 0.0f;
         }
 
         if (M > 0.0f) {
 
             // saturation
-            hsv[idx + 1] = (c / M) * (M > 0.0f);
+            hsv[idx + 1] = c / M;
 
+        } else {
+
+            hsv[idx + 1] = 0.0f;
         }
 
         // value
