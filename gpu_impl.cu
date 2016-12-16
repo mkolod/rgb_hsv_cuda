@@ -112,8 +112,7 @@ int main(int argc, char **argv) {
 	gpuAssert(cudaMalloc(&mat_d2, size_bytes));
 
 	for (int i = 0; i < total; i++) {
-		const int num = rand() % 256;
-		mat_h[i] = num > 0.0f ? num : -num;
+		mat_h[i] = abs(rand() % 256);
 	}
 
 	gpuAssert(cudaMemcpy(mat_d, mat_h, size_bytes, cudaMemcpyHostToDevice));

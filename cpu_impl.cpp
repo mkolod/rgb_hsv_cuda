@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     cout << "\nHue adjustment - CPU implementation\n";
     cout << "\nRGB image size: " << rows << "x" << cols << "\n";
     cout << "CPU hue_adjust function invocations: " << num_invocations << "\n";
-    cout << "Total kernel time: " << total_time << " ms\n";
+    cout << "Total hue_adjust function time: " << total_time << " ms\n";
     cout << "Per invocation: " << (total_time / num_invocations) << " ms\n";
 
     int error_ctr = 0;
