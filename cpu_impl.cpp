@@ -4,10 +4,11 @@
 #include <iostream>
 #include <ctime>
 #include <stdint.h>
+#include <cpuid.h>
+
+#include <stdio.h>
 
 using namespace std;
-
-#define int8 unsigned char
 
 // RNG for reproducible CPU/GPU results without loading an actual RGB image
 class RNG {
@@ -28,8 +29,51 @@ private:
     int64_t seed;
 };
 
+// For CPUID
+enum cpuid_requests {
+  CPUID_GETVENDORSTRING,
+  CPUID_GETFEATURES,
+  CPUID_GETTLB,
+  CPUID_GETSERIAL,
 
-void hue_adjust(const int rows, const int cols, const int8 * const rgb, int8 * const rgb2, const float hue_delta) {
+  CPUID_INTELEXTENDED=0x80000000,
+  CPUID_INTELFEATURES,
+  CPUID_INTELBRANDSTRING,
+  CPUID_INTELBRANDSTRINGMORE,
+  CPUID_INTELBRANDSTRINGEND,
+};
+
+static inline void cpuid(int code, int *a, int *b, int *c, int *d) {
+  __asm__ __volatile__("cpuid":"=a"(*a),"=b"(*b),
+                        "=c"(*c),"=d"(*d):"a"(code));
+}
+
+void print_cpu_id() {
+
+	union{
+     struct reg{
+         int eax;
+         int ebx;
+         int ecx;
+         int edx;
+     }cpu;
+   char string[16];
+  }info;
+
+  cout << "Processor Brand:  ";
+
+  cpuid(CPUID_INTELBRANDSTRING, &info.cpu.eax, &info.cpu.ebx, &info.cpu.ecx, &info.cpu.edx);
+  cout << std::string(info.string, 16);
+
+  cpuid(CPUID_INTELBRANDSTRINGMORE, &info.cpu.eax, &info.cpu.ebx, &info.cpu.ecx, &info.cpu.edx);
+  cout << std::string(info.string, 16);
+
+  cpuid(CPUID_INTELBRANDSTRINGEND, &info.cpu.eax, &info.cpu.ebx, &info.cpu.ecx, &info.cpu.edx);
+  cout << std::string(info.string, 16)  << "\n";
+}
+
+
+void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8_t * const rgb2, const float hue_delta) {
 
     const int total = rows * cols * 3;   
 
@@ -105,6 +149,19 @@ void hue_adjust(const int rows, const int cols, const int8 * const rgb, int8 * c
 
 }
 
+
+static inline void native_cpuid(unsigned int *eax, unsigned int *ebx,
+                                unsigned int *ecx, unsigned int *edx)
+{
+        /* ecx is often an input as well as an output. */
+        asm volatile("cpuid"
+            : "=a" (*eax),
+              "=b" (*ebx),
+              "=c" (*ecx),
+              "=d" (*edx)
+            : "0" (*eax), "2" (*ecx));
+}
+
 int main(int argc, char **argv) {
 
     const int rows = 352;
@@ -112,16 +169,16 @@ int main(int argc, char **argv) {
     const int channels = 3;
     const int total = rows * cols * channels;
 
-    int8 * const rgb = (int8 *) calloc(total, sizeof(int8));
+    uint8_t * const rgb = (uint8_t *) calloc(total, sizeof(uint8_t));
 
     RNG rng(42);
 
     for (int i = 0; i < total; i++) {
 
-        rgb[i] = (int8) rng.next_int(255);
+        rgb[i] = (uint8_t) rng.next_int(255);
     }
     
-    int8 * const rgb2 = (int8 *) calloc(total, sizeof(int8));
+    uint8_t * const rgb2 = (uint8_t *) calloc(total, sizeof(uint8_t));
 
     std::clock_t start, end;
     start = clock();
@@ -140,7 +197,9 @@ int main(int argc, char **argv) {
 
     cout.precision(4);
 
+    cout << "\n==============================================================\n";
     cout << "\nHue adjustment - CPU implementation\n";
+    print_cpu_id();
     cout << "\nRGB image size: " << rows << "x" << cols << "\n";
     cout << "CPU hue_adjust function invocations: " << num_invocations << "\n";
     cout << "Total hue_adjust function time: " << total_time << " ms\n";

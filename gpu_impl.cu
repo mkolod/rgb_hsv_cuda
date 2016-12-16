@@ -1,6 +1,5 @@
-#define uint8 unsigned char
-
 #include <iostream>
+#include <stdint.h>
 
 using std::cout;
 
@@ -14,7 +13,7 @@ inline bool gpuAssert(cudaError_t code) {
 }
 
 __global__ void adjust_hue_hwc(const int height, const int width,
-		uint8 * const input, uint8 * const output, const float hue_delta) {
+		uint8_t * const input, uint8_t * const output, const float hue_delta) {
 
 	// multiply by 3 since we're dealing with contiguous RGB bytes for each pixel
 	const int idx = (blockDim.x * blockIdx.x + threadIdx.x) * 3;
@@ -101,12 +100,12 @@ int main(int argc, char **argv) {
 	const int w = 352;
 	const int total = h * w * 3;
 
-	const int size_bytes = h * w * 3 * sizeof(uint8);
+	const int size_bytes = h * w * 3 * sizeof(uint8_t);
 
-	uint8 * mat_h = (uint8 *) malloc(size_bytes);
-	uint8 * mat_h2 = (uint8 *) calloc(h * w * 3, sizeof(uint8));
-	uint8 * mat_d = NULL;
-	uint8 * mat_d2 = NULL;
+	uint8_t * mat_h = (uint8_t *) malloc(size_bytes);
+	uint8_t * mat_h2 = (uint8_t *) calloc(h * w * 3, sizeof(uint8_t));
+	uint8_t * mat_d = NULL;
+	uint8_t * mat_d2 = NULL;
 
 	gpuAssert(cudaMalloc(&mat_d, size_bytes));
 	gpuAssert(cudaMalloc(&mat_d2, size_bytes));
@@ -157,7 +156,19 @@ int main(int argc, char **argv) {
 
     cout.precision(4);
 
+    cout << "\n==============================================================\n";
     cout << "\nHue adjustment - GPU implementation\n";
+
+    int dev = 0, driverVersion = 0, runtimeVersion = 0;
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, dev);
+    cudaDriverGetVersion(&driverVersion);
+    cudaRuntimeGetVersion(&runtimeVersion);
+    cout << "GPU: " << deviceProp.name << "\n";
+    cout << "CUDA driver version : " << (driverVersion / 1000) << "\n";
+    cout << "CUDA runtime version : " << (runtimeVersion / 1000) << "\n";
+    cout << "CUDA capability major.minor: " << deviceProp.major << "." << deviceProp.minor << "\n";
+
     cout << "\nRGB image size: " << h << "x" << w << "\n";
     cout << "GPU hue_adjust function invocations: " << num_invocations << "\n";
     cout << "Total kernel time: " << elapsed_ms << " ms\n";
@@ -166,6 +177,8 @@ int main(int argc, char **argv) {
 
 	cout << "\nThere were " << error_ctr << " bad pixels out of " << total << "\n";
 	cout << "This represents " << (100.0 * error_ctr / total) << "% of pixels\n\n";
+	cout << "\n==============================================================\n\n";
+
 
 	return 0;
 }
