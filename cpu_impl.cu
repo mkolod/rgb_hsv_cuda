@@ -5,10 +5,20 @@
 #include <ctime>
 #include <stdint.h>
 #include <cpuid.h>
-
-#include <stdio.h>
+#include <cuda_runtime.h>
+#include <cuda.h>
+#include "gpu_impl.cuh"
 
 using namespace std;
+
+inline bool gpuAssert(cudaError_t code) {
+	if (code != cudaSuccess) {
+		cout << cudaGetErrorString(code) << "\n";
+		return false;
+	}
+
+	return true;
+}
 
 // RNG for reproducible CPU/GPU results without loading an actual RGB image
 class RNG {
@@ -150,18 +160,6 @@ void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8
 }
 
 
-static inline void native_cpuid(unsigned int *eax, unsigned int *ebx,
-                                unsigned int *ecx, unsigned int *edx)
-{
-        /* ecx is often an input as well as an output. */
-        asm volatile("cpuid"
-            : "=a" (*eax),
-              "=b" (*ebx),
-              "=c" (*ecx),
-              "=d" (*edx)
-            : "0" (*eax), "2" (*ecx));
-}
-
 int main(int argc, char **argv) {
 
     const int rows = 352;
@@ -193,7 +191,7 @@ int main(int argc, char **argv) {
 
     end = clock();
 
-    const float total_time = 1000.0 * (end - start) / (CLOCKS_PER_SEC);
+    const float total_cpu_time = 1000.0 * (end - start) / (CLOCKS_PER_SEC);
 
     cout.precision(4);
 
@@ -202,8 +200,8 @@ int main(int argc, char **argv) {
     print_cpu_id();
     cout << "\nRGB image size: " << rows << "x" << cols << "\n";
     cout << "CPU hue_adjust function invocations: " << num_invocations << "\n";
-    cout << "Total hue_adjust function time: " << total_time << " ms\n";
-    cout << "Per invocation: " << (total_time / num_invocations) << " ms\n";
+    cout << "Total hue_adjust function time: " << total_cpu_time << " ms\n";
+    cout << "Per invocation: " << (total_cpu_time / num_invocations) << " ms\n";
 
     int error_ctr = 0;
 
@@ -217,7 +215,78 @@ int main(int argc, char **argv) {
     }
 
     cout << "\nThere were " << error_ctr << " bad pixels out of " << total << "\n";
-    cout << "This represents " << (100.0 * error_ctr / total) << "% of pixels\n\n";
+    cout << "This represents " << (100.0 * error_ctr / total) << "% of pixels\n\n";    
+
+   	uint8_t * rgb_h2 = (uint8_t *) calloc(rows * cols * 3, sizeof(uint8_t));
+	uint8_t * rgb_d = NULL;
+	uint8_t * rgb_d2 = NULL;
+
+    const int size_bytes = total * sizeof(uint8_t);
+
+	gpuAssert(cudaMalloc(&rgb_d, size_bytes));
+	gpuAssert(cudaMalloc(&rgb_d2, size_bytes));
+
+	gpuAssert(cudaMemcpy(rgb_d, rgb, size_bytes, cudaMemcpyHostToDevice));
+
+	const int threads_per_block = 1024;
+	const int blocks = (rows * cols + (threads_per_block - 1)) / threads_per_block;
+
+	cudaEvent_t cuda_start, cuda_end;
+
+    cudaEventCreate(&cuda_start);
+    cudaEventCreate(&cuda_end);
+
+    // using default stream
+    cudaEventRecord(cuda_start, 0);
+
+    for (int i = 0; i < num_invocations; i++) {
+
+    	adjust_hue_hwc<<<blocks, threads_per_block>>>(rows, cols, rgb_d, rgb_d2, hue_delta);
+    }
+
+    cudaEventRecord(cuda_end, 0);
+    cudaEventSynchronize(cuda_end);
+
+    float total_gpu_time;
+    cudaEventElapsedTime(&total_gpu_time, cuda_start, cuda_end);
+
+	gpuAssert(cudaMemcpy(rgb_h2, rgb_d2, size_bytes, cudaMemcpyDeviceToHost));
+
+	error_ctr = 0;
+
+	for (int i = 0; i < total; i++) {
+
+		if (rgb[i] != rgb_h2[i]) {
+
+			error_ctr++;
+		}
+	}
+
+    cout << "\n==============================================================\n";
+    cout << "\nHue adjustment - GPU implementation\n";
+
+    int dev = 0, driverVersion = 0, runtimeVersion = 0;
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, dev);
+    cudaDriverGetVersion(&driverVersion);
+    cudaRuntimeGetVersion(&runtimeVersion);
+    cout << "GPU: " << deviceProp.name << "\n";
+    cout << "CUDA driver version : " << (driverVersion / 1000) << "\n";
+    cout << "CUDA runtime version : " << (runtimeVersion / 1000) << "\n";
+    cout << "CUDA capability major.minor: " << deviceProp.major << "." << deviceProp.minor << "\n";
+
+    cout << "\nRGB image size: " << rows << "x" << cols << "\n";
+    cout << "GPU hue_adjust function invocations: " << num_invocations << "\n";
+    cout << "Total kernel time: " << total_gpu_time << " ms\n";
+    cout << "Per invocation: " << (total_gpu_time / num_invocations) << " ms\n";
+
+
+	cout << "\nThere were " << error_ctr << " bad pixels out of " << total << "\n";
+	cout << "This represents " << (100.0 * error_ctr / total) << "% of pixels\n\n";
+	cout << "\n==============================================================\n\n";
+
+
+    cout << "GPU speed-up over CPU: " << (total_cpu_time / total_gpu_time) << "x\n\n";
 
 //    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
 //    imshow( "Display window", img );                   // Show our image inside it.
