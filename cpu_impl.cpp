@@ -51,6 +51,7 @@ void hue_adjust(const int rows, const int cols, const int8 * const rgb, int8 * c
 
         // hue
         if (c > 0.0) {
+
             if (M == r) {
 
                 const float num = (g - b) / c;
@@ -59,8 +60,11 @@ void hue_adjust(const int rows, const int cols, const int8 * const rgb, int8 * c
                 h = (sgn * 6.0f + sign * fmod(sign * num, 6.0f)) / 6.0f;
 
             } else if (M == g) {
+
                 h = ((b - r) / c + 2.0) / 6.0f;
+
             } else {
+
                 h = ((r - g) / c + 4.0) / 6.0f;
             }            
 
@@ -103,8 +107,8 @@ void hue_adjust(const int rows, const int cols, const int8 * const rgb, int8 * c
 
 int main(int argc, char **argv) {
 
-    const int rows = 352; //1300;
-    const int cols = 352; //1300;
+    const int rows = 352;
+    const int cols = 352;
     const int channels = 3;
     const int total = rows * cols * channels;
 
@@ -114,7 +118,7 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < total; i++) {
 
-        rgb[i] = (int8) rng.next_int(255);// (int8) abs(rand() % 255);
+        rgb[i] = (int8) rng.next_int(255);
     }
     
     int8 * const rgb2 = (int8 *) calloc(total, sizeof(int8));
@@ -136,24 +140,25 @@ int main(int argc, char **argv) {
 
     cout.precision(4);
 
-    cout << "\nCPU implementation\n";
+    cout << "\nHue adjustment - CPU implementation\n";
     cout << "\nRGB image size: " << rows << "x" << cols << "\n";
     cout << "CPU hue_adjust function invocations: " << num_invocations << "\n";
     cout << "Total kernel time: " << total_time << " ms\n";
     cout << "Per invocation: " << (total_time / num_invocations) << " ms\n";
 
-    int ctr = 0;
+    int error_ctr = 0;
 
     for (int i = 0; i < total; i++) {
 
         if (rgb[i] != rgb2[i]) {
 
-            ctr++;
+            error_ctr++;
         }
 
     }
 
-    cout << "\nPercent bad pixels: " << (1.0 * ctr / total * 100) << "\n\n";
+    cout << "\nThere were " << error_ctr << " bad pixels out of " << total << "\n";
+    cout << "This represents " << (100.0 * error_ctr / total) << "% of pixels\n\n";
 
 //    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
 //    imshow( "Display window", img );                   // Show our image inside it.
