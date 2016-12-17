@@ -41,11 +41,6 @@ private:
 
 // For CPUID
 enum cpuid_requests {
-  CPUID_GETVENDORSTRING,
-  CPUID_GETFEATURES,
-  CPUID_GETTLB,
-  CPUID_GETSERIAL,
-
   CPUID_INTELEXTENDED=0x80000000,
   CPUID_INTELFEATURES,
   CPUID_INTELBRANDSTRING,
@@ -197,8 +192,10 @@ int main(int argc, char **argv) {
 
     cout << "\n==============================================================\n";
     cout << "\nHue adjustment - CPU implementation\n";
+    cout << "CPU Info: " << std::flush;    
+    // Note: this will only work on Intel x86 and clones (e.g. AMD)
     print_cpu_id();
-    cout << "\nRGB image size: " << rows << "x" << cols << "\n";
+    cout << "RGB image size: " << rows << "x" << cols << "\n";
     cout << "CPU hue_adjust function invocations: " << num_invocations << "\n";
     cout << "Total hue_adjust function time: " << total_cpu_time << " ms\n";
     cout << "Per invocation: " << (total_cpu_time / num_invocations) << " ms\n";
