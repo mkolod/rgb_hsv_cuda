@@ -58,6 +58,33 @@ __global__ void adjust_hue_hwc(const int height, const int width,
     // hue adjustment
 	h = fmod(h + hue_delta, 1.0f); 
 
+   ////////////////////////////////////////////
+   // Murmurhash - based random adjustment
+   // uint32_t k = idx;
+   // uint32_t seed = 42;
+
+   // k *= 0xcc9e2d51;
+   // k = (k << 15) | (k >> 17);
+   // k *= 0x1b873593;
+   // seed ^= k;
+
+   // seed ^= 1;
+   // seed ^= seed >> 16;
+   // seed *= 0x85ebca6b;
+   // seed ^= seed >> 13;
+   // seed *= 0xc2b2ae35;
+   // seed ^= seed >> 16;
+
+   // // TODO: Add scaling factor
+   // // TODO: Cover shifts both up and down with wrap-around
+   // float rand_delta = (seed >> 8) / (float) (1 << 24);
+   // h = fmod(h + rand_delta, 1.0f);
+
+   ////////////////////////////////////////////
+
+
+
+
 	// HSV to RGB
 	const float new_h = h * 6.0f;
 	const float new_chroma = M * s;

@@ -9,6 +9,17 @@
 #include <cuda.h>
 #include "gpu_impl.cuh"
 
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
+using cv::Mat;
+using cv::imread;
+using cv::imshow;
+using cv::namedWindow;
+using cv::WINDOW_AUTOSIZE;
+using cv::waitKey;
+
 using namespace std;
 
 inline bool gpuAssert(cudaError_t code) {
@@ -285,9 +296,52 @@ int main(int argc, char **argv) {
 
     cout << "GPU speed-up over CPU: " << (total_cpu_time / total_gpu_time) << "x\n\n";
 
-//    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
-//    imshow( "Display window", img );                   // Show our image inside it.
-//
-//    waitKey(0);                                          // Wait for a keystroke in the window
+    cout << "Running OpenCV test with hue adjustment applied\n\n";
+
+    Mat img;
+    img = imread("lenna.jpg", CV_LOAD_IMAGE_COLOR);   // Read the file
+
+   Mat img2 = img.clone();
+   uint8_t * h_origdata = img.data;
+   uint8_t * h_newdata = (uint8_t *) calloc(img2.rows * img2.cols * 3, sizeof(uint8_t));
+
+   uint8_t * d_origdata = NULL;
+   uint8_t * d_newdata = NULL;
+
+   const int new_size_bytes = img2.rows * img2.cols * 3 * sizeof(uint8_t);
+
+   gpuAssert(cudaMalloc(&d_origdata, new_size_bytes));
+   gpuAssert(cudaMalloc(&d_newdata, new_size_bytes));
+
+   gpuAssert(cudaMemcpy(d_origdata, h_origdata, new_size_bytes, cudaMemcpyHostToDevice));
+
+   const int new_blocks = (img2.rows * img2.cols + (threads_per_block - 1)) / threads_per_block;
+
+   const float new_hue_delta = 0.7;
+
+   adjust_hue_hwc<<<new_blocks, threads_per_block>>>(img2.rows, img2.cols, d_origdata, d_newdata, new_hue_delta);
+
+   gpuAssert(cudaMemcpy(h_newdata, d_newdata, new_size_bytes, cudaMemcpyDeviceToHost));
+
+   img2.data = h_newdata;
+
+   Mat img3 = img.clone();
+   hue_adjust(img3.rows, img3.cols, img.data, img3.data, 0.7); // -0.6
+
+   Mat side_by_side(img2.rows * 3, img2.cols * 3, CV_8UC3);
+
+   // Mat * ptr = (Mat *) malloc(2 * sizeof(Mat));
+   Mat arr[3];
+   arr[0] = img;
+   arr[1] = img2;
+   arr[2] = img3;
+
+   cv::hconcat(arr, 3, side_by_side);
+
+   namedWindow("Display window", WINDOW_AUTOSIZE);
+   imshow("Display window", side_by_side);   
+
+
+   waitKey(0);                                          // Wait for a keystroke in the window
     return 0;
 }
