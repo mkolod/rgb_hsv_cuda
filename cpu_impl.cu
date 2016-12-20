@@ -89,7 +89,7 @@ void print_cpu_id() {
 }
 
 
-void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8_t * const rgb2, const float hue_delta) {
+void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8_t * rgb2, const float hue_delta) {
 
     const int total = rows * cols * 3;   
 
@@ -342,6 +342,6 @@ int main(int argc, char **argv) {
    imshow("Display window", side_by_side);   
 
 
-   waitKey(0);                                          // Wait for a keystroke in the window
+//   waitKey(0);                                          // Wait for a keystroke in the window
     return 0;
 }
