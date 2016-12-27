@@ -89,7 +89,7 @@ void print_cpu_id() {
 }
 
 
-void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8_t * rgb2, const float hue_delta) {
+void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8_t * const rgb2, const float hue_delta) {
 
     const int total = rows * cols * 3;   
 
@@ -110,7 +110,7 @@ void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8
         float s = 0.0f;
 
         // hue
-        if (c > 0.0f) {
+        if (c > 0.0) {
 
             if (M == r) {
 
@@ -121,11 +121,11 @@ void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8
 
             } else if (M == g) {
 
-                h = ((b - r) / c + 2.0f) / 6.0f;
+                h = ((b - r) / c + 2.0) / 6.0f;
 
             } else {
 
-                h = ((r - g) / c + 4.0f) / 6.0f;
+                h = ((r - g) / c + 4.0) / 6.0f;
             }            
 
         }        
@@ -139,11 +139,11 @@ void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8
         h = fmod(h + hue_delta, 1.0f);
 
         // HSV to RGB
-        const int i = h * 6.0f;
-        const float f = (h * 6.0f) - i;
-        const int p = round(M * (1.0f - s));
-        const int q = round(M * (1.0f - s * f));
-        const int t = round(M * (1.0f - s * (1.0f - f)));
+        const int i = h * 6.0;
+        const float f = (h * 6.0) - i;
+        const int p = round(M * (1.0 - s));
+        const int q = round(M * (1.0 - s * f));
+        const int t = round(M * (1.0 - s * (1.0 - f)));
 
         rgb2[idx] =
                 M * (i % 6 == 0 || i == 5 || s == 0) +
@@ -168,7 +168,7 @@ void hue_adjust(const int rows, const int cols, const uint8_t * const rgb, uint8
 
 int main(int argc, char **argv) {
 
-    const int rows = 352 * 32;
+    const int rows = 352;
     const int cols = 352;
     const int channels = 3;
     const int total = rows * cols * channels;
@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
 
     const float hue_delta = 0.0f;
 
-    const int num_invocations = 1;
+    const int num_invocations = 100;
 
     for (int i = 0; i < num_invocations; i++) {
         hue_adjust(rows, cols, rgb, rgb2, hue_delta);
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
 
 	gpuAssert(cudaMemcpy(rgb_d, rgb, size_bytes, cudaMemcpyHostToDevice));
 
-	const int threads_per_block = 64;
+	const int threads_per_block = 1024;
 	const int blocks = (rows * cols + (threads_per_block - 1)) / threads_per_block;
 
 	cudaEvent_t cuda_start, cuda_end;
@@ -326,7 +326,7 @@ int main(int argc, char **argv) {
    img2.data = h_newdata;
 
    Mat img3 = img.clone();
-   hue_adjust(img3.rows, img3.cols, img.data, img3.data, -0.6); // -0.6
+   hue_adjust(img3.rows, img3.cols, img.data, img3.data, 0.7); // -0.6
 
    Mat side_by_side(img2.rows * 3, img2.cols * 3, CV_8UC3);
 
@@ -342,6 +342,6 @@ int main(int argc, char **argv) {
    imshow("Display window", side_by_side);   
 
 
-    waitKey(0);                                          // Wait for a keystroke in the window
+   waitKey(0);                                          // Wait for a keystroke in the window
     return 0;
 }
